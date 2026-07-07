@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { signOut } from '../login/actions'
@@ -143,7 +144,11 @@ function LeadCard({ row, rank }: { row: BriefingRow; rank: number }) {
   const lead = row.leads
   const name = lead?.name || `Lead #${row.lead_id}`
   return (
-    <li className="rounded-2xl border border-gray-200 bg-white p-5">
+    <li>
+      <Link
+        href={`/dashboard/${row.lead_id}`}
+        className="block rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-gray-300 hover:shadow-sm"
+      >
       <div className="flex items-start gap-4">
         <div className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-gray-100 text-sm font-bold text-gray-500">
           {rank}
@@ -182,6 +187,7 @@ function LeadCard({ row, rank }: { row: BriefingRow; rank: number }) {
           {row.likelihood != null && <div className="text-xs text-gray-400">{row.likelihood}% likely</div>}
         </div>
       </div>
+      </Link>
     </li>
   )
 }
