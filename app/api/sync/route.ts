@@ -28,10 +28,11 @@ export async function POST(req: NextRequest) {
       if (params.get('reset') === '1') await resetFullSync()
       // Bounded chunk so the function fits inside its time limit; the caller
       // re-POSTs while `done` is false until the full sync completes.
-      const result = await fullSync({ maxPages: 25 })
+      const chunk = Math.min(Number(params.get('pages')) || 25, 500)
+      const result = await fullSync({ maxPages: chunk })
       return NextResponse.json(result)
     }
-    const result = await incrementalSync({})
+    const result = await incrementalSync()
     return NextResponse.json(result)
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 })

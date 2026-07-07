@@ -1,47 +1,41 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import { FubClient } from './client'
-import {
-  mapPerson, mapEvent, mapCall, mapText, mapNote, mapEmailEvent,
-} from './map'
+import { FubClient, type FubPage } from './client'
+import { mapPerson, mapEvent, mapCall, mapNote, mapText } from './map'
 import type { FubPerson, LeadEventRow } from './types'
 
 const PAGE = 100
+const CUTOFF_DAYS = 365
 type Db = ReturnType<typeof createAdminClient>
 
-// Activity collections, processed in order after people. Each is wrapped in
-// try/catch during the run so one unavailable endpoint can't fail the sync.
+// Collections that CAN be listed in bulk (newest-first, cursor paginated).
+// Text messages are excluded here: FUB requires a personId filter, so those
+// are fetched per-lead (see syncTextsForLeads).
 const ACTIVITY = [
-  { phase: 'events', path: '/events', key: 'events', map: mapEvent },
-  { phase: 'calls', path: '/calls', key: 'calls', map: mapCall },
-  { phase: 'texts', path: '/textMessages', key: 'textMessages', map: mapText },
-  { phase: 'notes', path: '/notes', key: 'notes', map: mapNote },
-  { phase: 'emails', path: '/emEvents', key: 'emEvents', map: mapEmailEvent },
+  { phase: 'events', path: '/events', key: 'events', map: mapEvent, maxPages: 300 },
+  { phase: 'calls', path: '/calls', key: 'calls', map: mapCall, maxPages: 300 },
+  { phase: 'notes', path: '/notes', key: 'notes', map: mapNote, maxPages: 150 },
 ] as const
 
-type Cursor = { phase: string; offset: number }
 export interface SyncResult {
   done: boolean
-  cursor: Cursor
+  phase: string
   counts: Record<string, number>
 }
 
-// --- sync_state cursor helpers ---
-async function loadState(db: Db, key: string): Promise<Record<string, unknown> | null> {
+// --- sync_state helpers ---
+async function loadState(db: Db, key: string): Promise<Record<string, unknown>> {
   const { data } = await db.from('sync_state').select('value').eq('key', key).maybeSingle()
-  return (data?.value as Record<string, unknown>) ?? null
+  return (data?.value as Record<string, unknown>) ?? {}
 }
 async function saveState(db: Db, key: string, value: Record<string, unknown>) {
   await db.from('sync_state').upsert({ key, value })
 }
 
-// Load every known lead id so we can skip activity for people we don't have
-// (avoids foreign-key failures on trashed/excluded contacts).
 async function loadLeadIds(db: Db): Promise<Set<number>> {
   const ids = new Set<number>()
   const size = 1000
   for (let from = 0; ; from += size) {
-    const { data, error } = await db
-      .from('leads').select('id').range(from, from + size - 1)
+    const { data, error } = await db.from('leads').select('id').range(from, from + size - 1)
     if (error) throw new Error('loadLeadIds: ' + error.message)
     if (!data?.length) break
     for (const r of data) ids.add(r.id as number)
@@ -50,89 +44,35 @@ async function loadLeadIds(db: Db): Promise<Set<number>> {
   return ids
 }
 
-async function insertEvents(db: Db, rows: LeadEventRow[], known: Set<number>) {
+async function insertEvents(db: Db, rows: LeadEventRow[], known: Set<number>): Promise<number> {
   const valid = rows.filter((r) => known.has(r.lead_id))
   if (!valid.length) return 0
-  const { error } = await db
-    .from('lead_events')
-    .upsert(valid, { onConflict: 'source_kind,fub_id', ignoreDuplicates: true })
-  if (error) throw new Error('lead_events upsert: ' + error.message)
-  return valid.length
+  // Dedup within the batch by (source_kind, fub_id).
+  const byKey = new Map<string, LeadEventRow>()
+  for (const r of valid) byKey.set(`${r.source_kind}:${r.fub_id}`, r)
+  const batch = [...byKey.values()]
+  // Skip rows already stored. We can't use ON CONFLICT here: the unique index
+  // on (source_kind, fub_id) is partial (WHERE fub_id IS NOT NULL) and
+  // supabase-js/PostgREST can't target a partial index. A plain insert of an
+  // existing row would still violate that index, so we filter first. This
+  // keeps the sync idempotent across resumed chunks and full re-runs.
+  const ids = batch.map((r) => r.fub_id)
+  const existing = new Set<string>()
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await db
+      .from('lead_events').select('source_kind,fub_id').in('fub_id', ids.slice(i, i + 200))
+    if (error) throw new Error('lead_events dedup: ' + error.message)
+    for (const e of data ?? []) existing.add(`${e.source_kind}:${e.fub_id}`)
+  }
+  const fresh = batch.filter((r) => !existing.has(`${r.source_kind}:${r.fub_id}`))
+  if (!fresh.length) return 0
+  const { error } = await db.from('lead_events').insert(fresh)
+  if (error) throw new Error('lead_events insert: ' + error.message)
+  return fresh.length
 }
 
-/**
- * Full sync: pages ALL people, then ALL activity, resumably. Persists a
- * cursor after every page. Processes at most `maxPages` pages per call and
- * returns { done:false } so a timeout-bound caller (Vercel) can loop.
- */
-export async function fullSync({ maxPages = 1000 }: { maxPages?: number } = {}): Promise<SyncResult> {
-  const db = createAdminClient()
-  const fub = new FubClient()
-
-  const state = (await loadState(db, 'full_sync')) ?? {}
-  let cursor: Cursor = (state.cursor as Cursor) ?? { phase: 'people', offset: 0 }
-  const counts: Record<string, number> = (state.counts as Record<string, number>) ?? {}
-  let known: Set<number> | null = null
-  let pages = 0
-
-  while (pages < maxPages && cursor.phase !== 'done') {
-    if (cursor.phase === 'people') {
-      const now = new Date().toISOString()
-      const { items, metadata } = await fub.getPage<FubPerson>('/people', 'people', {
-        limit: PAGE, offset: cursor.offset, includeTrash: false, sort: 'id',
-      })
-      if (items.length) {
-        const rows = items.map((p) => mapPerson(p, now))
-        const { error } = await db.from('leads').upsert(rows)
-        if (error) throw new Error('leads upsert: ' + error.message)
-        counts.people = (counts.people ?? 0) + rows.length
-      }
-      pages++
-      const nextOffset = cursor.offset + items.length
-      const finished =
-        items.length < PAGE ||
-        (metadata.total !== undefined && nextOffset >= metadata.total)
-      cursor = finished ? { phase: ACTIVITY[0].phase, offset: 0 } : { phase: 'people', offset: nextOffset }
-      await saveState(db, 'full_sync', { cursor, counts, updatedAt: now })
-      continue
-    }
-
-    const def = ACTIVITY.find((a) => a.phase === cursor.phase)
-    if (def) {
-      if (!known) known = await loadLeadIds(db)
-      let finished = false
-      try {
-        const { items, metadata } = await fub.getPage<Record<string, unknown>>(
-          def.path, def.key, { limit: PAGE, offset: cursor.offset },
-        )
-        const rows = items
-          .map((it) => def.map(it as never))
-          .filter((r): r is LeadEventRow => r !== null)
-        const inserted = await insertEvents(db, rows, known)
-        counts[def.phase] = (counts[def.phase] ?? 0) + inserted
-        const nextOffset = cursor.offset + items.length
-        finished =
-          items.length < PAGE ||
-          (metadata.total !== undefined && nextOffset >= metadata.total)
-        cursor = finished ? { phase: nextPhase(def.phase), offset: 0 } : { phase: def.phase, offset: nextOffset }
-      } catch (e) {
-        // Endpoint unavailable (e.g. no emEvents access): log + skip on.
-        counts[`${def.phase}_error`] = 1
-        cursor = { phase: nextPhase(def.phase), offset: 0 }
-      }
-      pages++
-      await saveState(db, 'full_sync', { cursor, counts, updatedAt: new Date().toISOString() })
-      continue
-    }
-
-    if (cursor.phase === 'derive') {
-      await db.rpc('recompute_lead_touch')
-      cursor = { phase: 'done', offset: 0 }
-      await saveState(db, 'full_sync', { cursor, counts, finishedAt: new Date().toISOString() })
-    }
-  }
-
-  return { done: cursor.phase === 'done', cursor, counts }
+function cutoffIso(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString()
 }
 
 function nextPhase(phase: string): string {
@@ -142,64 +82,166 @@ function nextPhase(phase: string): string {
 }
 
 /**
- * Incremental sync (nightly default): upsert people changed since the stored
- * watermark, pull recent activity, then recompute touch times.
+ * Full sync: all people, then recent (<= CUTOFF_DAYS) events/calls/notes,
+ * newest-first via cursor pagination. Resumable — persists {phase,next}
+ * after every page. Processes up to `maxPages` pages per call.
  */
-export async function incrementalSync({ maxPages = 50 }: { maxPages?: number } = {}): Promise<SyncResult> {
+export async function fullSync({ maxPages = 1000 }: { maxPages?: number } = {}): Promise<SyncResult> {
   const db = createAdminClient()
   const fub = new FubClient()
-  const state = (await loadState(db, 'incremental_sync')) ?? {}
-  const watermark = (state.watermark as string) ?? '1970-01-01T00:00:00Z'
+  const state = await loadState(db, 'full_sync')
+
+  let phase = (state.phase as string) ?? 'people'
+  let next = (state.next as string | null) ?? null
+  const phasePages = (state.phasePages as Record<string, number>) ?? {}
+  const counts = (state.counts as Record<string, number>) ?? {}
+  const cutoff = cutoffIso(CUTOFF_DAYS)
+  let known: Set<number> | null = null
+  let pages = 0
+
+  const save = () =>
+    saveState(db, 'full_sync', { phase, next, phasePages, counts, updatedAt: new Date().toISOString() })
+
+  while (pages < maxPages && phase !== 'done') {
+    if (phase === 'people') {
+      const now = new Date().toISOString()
+      const { items, metadata } = await fub.getPage<FubPerson>('/people', 'people', {
+        limit: PAGE, sort: 'id', includeTrash: false, next: next ?? undefined,
+      })
+      if (items.length) {
+        const { error } = await db.from('leads').upsert(items.map((p) => mapPerson(p, now)))
+        if (error) throw new Error('leads upsert: ' + error.message)
+        counts.people = (counts.people ?? 0) + items.length
+      }
+      pages++
+      next = metadata.next ?? null
+      if (!next || items.length < PAGE) { phase = ACTIVITY[0].phase; next = null }
+      await save()
+      continue
+    }
+
+    const def = ACTIVITY.find((a) => a.phase === phase)
+    if (def) {
+      if (!known) known = await loadLeadIds(db)
+      try {
+        const { items, metadata } = await fub.getPage<Record<string, unknown>>(def.path, def.key, {
+          limit: PAGE, sort: '-created', next: next ?? undefined,
+        })
+        const rows = items
+          .map((it) => def.map(it as never))
+          .filter((r): r is LeadEventRow => r !== null && r.occurred_at >= cutoff)
+        counts[def.phase] = (counts[def.phase] ?? 0) + (await insertEvents(db, rows, known))
+        phasePages[def.phase] = (phasePages[def.phase] ?? 0) + 1
+        next = metadata.next ?? null
+        const reachedCutoff = items.some((it) => String((it as { created?: string }).created ?? '') < cutoff)
+        if (!next || items.length < PAGE || phasePages[def.phase] >= def.maxPages || reachedCutoff) {
+          phase = nextPhase(def.phase); next = null
+        }
+      } catch (e) {
+        console.error(`[sync] ${def.phase} failed:`, (e as Error).message)
+        counts[`${def.phase}_error`] = 1
+        phase = nextPhase(def.phase); next = null
+      }
+      pages++
+      await save()
+      continue
+    }
+
+    if (phase === 'derive') {
+      await db.rpc('recompute_lead_touch')
+      phase = 'done'
+      await save()
+    }
+  }
+
+  return { done: phase === 'done', phase, counts }
+}
+
+/**
+ * Incremental (nightly): people changed since watermark, recent activity
+ * since watermark, per-lead texts for the changed leads, then recompute.
+ */
+export async function incrementalSync(): Promise<SyncResult> {
+  const db = createAdminClient()
+  const fub = new FubClient()
+  const state = await loadState(db, 'incremental_sync')
+  const watermark = (state.watermark as string) ?? cutoffIso(CUTOFF_DAYS)
   const counts: Record<string, number> = {}
+  const changed = new Set<number>()
   let newWatermark = watermark
 
-  // People changed since last run (newest first; stop at watermark).
-  for (let page = 0, offset = 0; page < maxPages; page++, offset += PAGE) {
+  // Changed people (newest-updated first; stop past the watermark).
+  let next: string | null = null
+  for (let page = 0; page < 100; page++) {
     const now = new Date().toISOString()
-    const { items } = await fub.getPage<FubPerson>('/people', 'people', {
-      limit: PAGE, offset, sort: 'updated', includeTrash: false,
+    const { items, metadata }: FubPage<FubPerson> = await fub.getPage<FubPerson>('/people', 'people', {
+      limit: PAGE, sort: '-updated', includeTrash: false, next: next ?? undefined,
     })
     if (!items.length) break
     const fresh = items.filter((p) => (p.updated ?? '') > watermark)
     if (fresh.length) {
-      const rows = fresh.map((p) => mapPerson(p, now))
-      const { error } = await db.from('leads').upsert(rows)
+      const { error } = await db.from('leads').upsert(fresh.map((p) => mapPerson(p, now)))
       if (error) throw new Error('leads upsert: ' + error.message)
-      counts.people = (counts.people ?? 0) + rows.length
-      for (const p of fresh) if ((p.updated ?? '') > newWatermark) newWatermark = p.updated!
+      counts.people = (counts.people ?? 0) + fresh.length
+      for (const p of fresh) {
+        changed.add(p.id)
+        if ((p.updated ?? '') > newWatermark) newWatermark = p.updated!
+      }
     }
-    if (fresh.length < items.length) break // reached already-synced records
+    next = metadata.next ?? null
+    if (fresh.length < items.length || !next) break
   }
 
-  // Recent activity for all known leads (bounded pull, newest first).
   const known = await loadLeadIds(db)
+
+  // Recent bulk activity since the watermark.
   for (const def of ACTIVITY) {
-    try {
-      for (let page = 0, offset = 0; page < 5; page++, offset += PAGE) {
-        const { items } = await fub.getPage<Record<string, unknown>>(def.path, def.key, {
-          limit: PAGE, offset, sort: 'created',
-        })
-        if (!items.length) break
-        const rows = items
-          .map((it) => def.map(it as never))
-          .filter((r): r is LeadEventRow => r !== null && (r.occurred_at ?? '') > watermark)
-        counts[def.phase] = (counts[def.phase] ?? 0) + (await insertEvents(db, rows, known))
-        if (rows.length < items.length) break
-      }
-    } catch {
-      counts[`${def.phase}_error`] = 1
+    let cur: string | null = null
+    for (let page = 0; page < def.maxPages; page++) {
+      const { items, metadata }: FubPage<Record<string, unknown>> = await fub.getPage<Record<string, unknown>>(def.path, def.key, {
+        limit: PAGE, sort: '-created', next: cur ?? undefined,
+      })
+      if (!items.length) break
+      const rows = items
+        .map((it) => def.map(it as never))
+        .filter((r): r is LeadEventRow => r !== null && r.occurred_at > watermark)
+      counts[def.phase] = (counts[def.phase] ?? 0) + (await insertEvents(db, rows, known))
+      cur = metadata.next ?? null
+      if (rows.length < items.length || !cur) break
     }
   }
+
+  // Per-lead texts for the leads that changed tonight.
+  counts.texts = await syncTextsForLeads(db, fub, [...changed], known, watermark)
 
   await db.rpc('recompute_lead_touch')
   await saveState(db, 'incremental_sync', {
     watermark: newWatermark, counts, finishedAt: new Date().toISOString(),
   })
-  return { done: true, cursor: { phase: 'done', offset: 0 }, counts }
+  return { done: true, phase: 'done', counts }
 }
 
-// Clears the full-sync cursor so the next run starts fresh.
+// Fetch text messages for specific leads (FUB requires a personId filter).
+export async function syncTextsForLeads(
+  db: Db, fub: FubClient, ids: number[], known: Set<number>, sinceIso: string,
+): Promise<number> {
+  let inserted = 0
+  for (const id of ids) {
+    try {
+      const { items } = await fub.getPage<Record<string, unknown>>('/textMessages', 'textMessages', {
+        personId: id, limit: PAGE,
+      })
+      const rows = items
+        .map((it) => mapText(it as never))
+        .filter((r): r is LeadEventRow => r !== null && r.occurred_at >= sinceIso)
+      inserted += await insertEvents(db, rows, known)
+    } catch {
+      // skip a lead that errors; keep going
+    }
+  }
+  return inserted
+}
+
 export async function resetFullSync() {
-  const db = createAdminClient()
-  await saveState(db, 'full_sync', {})
+  await saveState(createAdminClient(), 'full_sync', {})
 }

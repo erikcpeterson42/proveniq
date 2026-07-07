@@ -3,8 +3,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 
 type CookieToSet = { name: string; value: string; options: CookieOptions }
 
-// Public routes that do NOT require a logged-in user.
-const PUBLIC_PATHS = ['/login', '/auth']
+// Paths that skip the redirect-to-login guard. API routes enforce their
+// own auth (e.g. /api/sync checks CRON_SECRET) and must return JSON/401
+// rather than an HTML login page.
+const PUBLIC_PATHS = ['/login', '/auth', '/api']
 
 // Refreshes the user's session on every request and redirects
 // signed-out users to /login for any protected route.

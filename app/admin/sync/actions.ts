@@ -19,7 +19,7 @@ async function requireAdmin() {
 
 export async function runIncremental() {
   await requireAdmin()
-  await incrementalSync({})
+  await incrementalSync()
   revalidatePath('/admin/sync')
 }
 
