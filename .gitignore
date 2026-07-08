@@ -42,3 +42,6 @@ next-env.d.ts
 
 # Claude Code local settings (personal to your machine)
 /.claude
+
+# Local dev scratch scripts (read env, not part of the app)
+_*.mjs
