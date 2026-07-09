@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body {
+  background-color: #f6f3ec; /* canvas */
+  color: #0f2a43; /* navy-900 */
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
