@@ -49,20 +49,20 @@ function buildHtml(runDate: string, rows: DigestRow[], stats: { hot: number; gem
     const badges =
       (lead?.lead_type ? chip('#dcfce7', '#15803d', lead.lead_type.toUpperCase()) : '') +
       (r.is_hot ? chip('#fee2e2', '#b91c1c', 'HOT') : '') +
-      (r.is_gem ? chip('#fef3c7', '#b45309', 'GEM') : '') +
-      (r.is_overdue ? chip('#dbeafe', '#1d4ed8', 'OVERDUE') : '')
+      (r.is_gem ? chip('#d8f0fb', '#196f97', 'GEM') : '') +
+      (r.is_overdue ? chip('#fef0d6', '#b45309', 'OVERDUE') : '')
     return `
       <tr>
         <td style="padding:14px 0;border-top:1px solid #eee;vertical-align:top;width:34px;">
           <div style="width:26px;height:26px;border-radius:50%;background:#f3f4f6;color:#6b7280;font-weight:700;font-size:13px;text-align:center;line-height:26px;">${i + 1}</div>
         </td>
         <td style="padding:14px 0;border-top:1px solid #eee;vertical-align:top;">
-          <a href="${base}/dashboard/${r.lead_id}" style="color:#111;font-weight:600;text-decoration:none;font-size:15px;">${name}</a>${badges}
+          <a href="${base}/dashboard/${r.lead_id}" style="color:#0f2a43;font-weight:600;text-decoration:none;font-size:15px;">${name}</a>${badges}
           <div style="color:#374151;font-size:13px;margin-top:3px;">${esc(r.next_action ?? '')}</div>
           <div style="color:#9ca3af;font-size:12px;margin-top:2px;">${lead?.city ? esc(lead.city) + ' · ' : ''}timeline ~${esc(r.timeline_bucket ?? '?')} days</div>
         </td>
         <td style="padding:14px 0;border-top:1px solid #eee;vertical-align:top;text-align:right;width:44px;">
-          <div style="font-size:20px;font-weight:700;color:#111;">${r.score}</div>
+          <div style="font-size:20px;font-weight:700;color:#0f2a43;">${r.score}</div>
         </td>
       </tr>`
   }).join('')
@@ -70,17 +70,18 @@ function buildHtml(runDate: string, rows: DigestRow[], stats: { hot: number; gem
   return `<!doctype html><html><body style="margin:0;background:#f9fafb;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
     <div style="max-width:600px;margin:0 auto;padding:24px 16px;">
       <div style="background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:24px;">
+        <img src="${base}/proven-logo.png" alt="Proven Realty, brokered by eXp" style="height:38px;width:auto;margin-bottom:10px;" />
         <div style="font-size:12px;color:#9ca3af;">${runDate}</div>
-        <h1 style="margin:2px 0 2px;font-size:22px;color:#111;">Today&rsquo;s Briefing</h1>
+        <h1 style="margin:2px 0 2px;font-size:22px;color:#0f2a43;font-family:Georgia,serif;">Today&rsquo;s Briefing</h1>
         <p style="margin:0 0 16px;color:#6b7280;font-size:14px;">The leads most worth contacting today.</p>
         <div style="font-size:13px;color:#374151;margin-bottom:8px;">
           <b style="color:#b91c1c;">${stats.hot}</b> hot &nbsp;·&nbsp;
-          <b style="color:#b45309;">${stats.gems}</b> seller gems &nbsp;·&nbsp;
-          <b style="color:#1d4ed8;">${stats.overdue}</b> overdue
+          <b style="color:#196f97;">${stats.gems}</b> seller gems &nbsp;·&nbsp;
+          <b style="color:#b45309;">${stats.overdue}</b> overdue
         </div>
         <table style="width:100%;border-collapse:collapse;">${items}</table>
         <div style="margin-top:20px;text-align:center;">
-          <a href="${base}/dashboard" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:10px;">Open the full briefing</a>
+          <a href="${base}/dashboard" style="display:inline-block;background:#0f2a43;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:10px;">Open the full briefing</a>
         </div>
       </div>
       <p style="text-align:center;color:#9ca3af;font-size:11px;margin-top:14px;">ProvenIQ · Proven Realty lead engine</p>

@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { login } from './actions'
 
 export default function LoginPage({
@@ -11,9 +12,14 @@ export default function LoginPage({
     <main className="flex min-h-screen items-center justify-center bg-navy-900 px-4">
       <div className="w-full max-w-sm rounded-2xl border border-navy-100 bg-white p-8 shadow-2xl">
         <div className="mb-6 text-center">
-          <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-gold-500 font-serif text-2xl font-bold text-navy-900">
-            P
-          </span>
+          <Image
+            src="/proven-logo.png"
+            alt="Proven Realty, brokered by eXp"
+            width={260}
+            height={72}
+            priority
+            className="mx-auto mb-4 h-12 w-auto"
+          />
           <h1 className="font-serif text-2xl tracking-tight text-navy-900">ProvenIQ</h1>
           <p className="mt-1 text-sm text-navy-500">Proven Realty team sign in</p>
         </div>
@@ -31,7 +37,7 @@ export default function LoginPage({
               type="email"
               autoComplete="email"
               required
-              className="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm text-navy-900 outline-none transition focus:border-gold-500 focus:ring-1 focus:ring-gold-500"
+              className="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm text-navy-900 outline-none transition focus:border-azure-500 focus:ring-1 focus:ring-azure-500"
             />
           </div>
 
@@ -43,13 +49,13 @@ export default function LoginPage({
               type="password"
               autoComplete="current-password"
               required
-              className="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm text-navy-900 outline-none transition focus:border-gold-500 focus:ring-1 focus:ring-gold-500"
+              className="w-full rounded-lg border border-navy-200 px-3 py-2 text-sm text-navy-900 outline-none transition focus:border-azure-500 focus:ring-1 focus:ring-azure-500"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-900 transition hover:bg-gold-600"
+            className="w-full rounded-lg bg-navy-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-navy-800"
           >
             Sign in
           </button>

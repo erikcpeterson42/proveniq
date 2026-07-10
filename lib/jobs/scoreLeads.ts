@@ -7,11 +7,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { scoreLead } from '@/lib/scoring/score'
 import { bestContactWindow, nextAction } from '@/lib/scoring/derive'
 import { DEFAULT_CONFIG, type ScoreConfig, type ScoringEvent } from '@/lib/scoring/types'
+import { isExcludedName } from '@/lib/scoring/exclude'
 
 type Db = ReturnType<typeof createAdminClient>
 
 interface LeadRow {
   id: number
+  name: string | null
   lead_type: 'buyer' | 'seller' | null
   stage: string | null
   tags: unknown
@@ -32,6 +34,7 @@ export interface ScoreRunResult {
   hot: number
   gems: number
   overdue: number
+  excluded: number
 }
 
 // Page through an entire table in 1000-row windows, ordered by id.
@@ -79,8 +82,19 @@ export async function scoreAllLeads(now: number = Date.now()): Promise<ScoreRunR
   const cfg = await loadConfig(db)
 
   const leads = await pageAll<LeadRow>(db, 'leads',
-    'id,lead_type,stage,tags,last_touch_at,last_inbound_at,unanswered_hours')
+    'id,name,lead_type,stage,tags,last_touch_at,last_inbound_at,unanswered_hours')
   const events = await pageAll<EventRow>(db, 'lead_events', 'lead_id,type,occurred_at,payload')
+
+  // Never score or brief Proven Realty team members — their FUB records are not
+  // leads (see lib/scoring/exclude). Purge any scores/scripts they may already
+  // have, then drop them so they can't reappear anywhere.
+  const excludedIds = leads.filter((l) => isExcludedName(l.name)).map((l) => l.id)
+  for (let i = 0; i < excludedIds.length; i += 200) {
+    const slice = excludedIds.slice(i, i + 200)
+    await db.from('lead_scripts').delete().in('lead_id', slice)
+    await db.from('lead_scores').delete().in('lead_id', slice)
+  }
+  const scorable = excludedIds.length ? leads.filter((l) => !isExcludedName(l.name)) : leads
 
   // Group events by lead for O(1) lookup during scoring.
   const byLead = new Map<number, ScoringEvent[]>()
@@ -91,7 +105,7 @@ export async function scoreAllLeads(now: number = Date.now()): Promise<ScoreRunR
   }
 
   let hot = 0, gems = 0, overdue = 0
-  const rows = leads.map((l) => {
+  const rows = scorable.map((l) => {
     const evs = byLead.get(l.id) ?? []
     const lead = {
       id: l.id,
@@ -137,5 +151,5 @@ export async function scoreAllLeads(now: number = Date.now()): Promise<ScoreRunR
     if (error) throw new Error('lead_scores upsert: ' + error.message)
   }
 
-  return { runDate, scored: rows.length, hot, gems, overdue }
+  return { runDate, scored: rows.length, hot, gems, overdue, excluded: excludedIds.length }
 }

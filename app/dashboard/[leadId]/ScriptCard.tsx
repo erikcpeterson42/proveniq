@@ -27,7 +27,7 @@ export function ScriptCard({ title, body }: { title: string; body: string }) {
           className={`rounded-md border px-2.5 py-1 text-xs font-medium transition ${
             copied
               ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-              : 'border-navy-200 text-navy-600 hover:border-gold-400 hover:text-gold-700'
+              : 'border-navy-200 text-navy-600 hover:border-azure-400 hover:text-azure-700'
           }`}
         >
           {copied ? 'Copied ✓' : 'Copy'}

@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss'
 
-// Proven Realty brand system: deep navy + warm gold on a soft cream canvas.
+// Proven Realty brand system: deep navy + bright azure blue (from the logo)
+// on a soft cream canvas.
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
   theme: {
@@ -20,14 +21,14 @@ const config: Config = {
           900: '#0f2a43',
           950: '#081a2b',
         },
-        gold: {
-          100: '#f6edd6',
-          200: '#ecdcaf',
-          300: '#e0c983',
-          400: '#d3b45f',
-          500: '#c8a24b',
-          600: '#a9863a',
-          700: '#86692c',
+        azure: {
+          100: '#daf1fc',
+          200: '#b0e0f8',
+          300: '#7cccf1',
+          400: '#48b5e9',
+          500: '#29a9e0', // the bright blue in the Proven Realty logo
+          600: '#1d8bbe',
+          700: '#196f97',
         },
       },
       fontFamily: {

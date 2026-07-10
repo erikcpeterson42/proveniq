@@ -77,11 +77,11 @@ export default async function LeadDetailPage({ params }: { params: { leadId: str
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-navy-800 bg-navy-900 text-white shadow-lg">
         <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-3.5">
-          <Link href="/dashboard" className="text-sm font-medium text-navy-100 transition hover:text-gold-300">
+          <Link href="/dashboard" className="text-sm font-medium text-navy-100 transition hover:text-azure-300">
             ← Back to briefing
           </Link>
           <Link href="/dashboard" className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gold-500 font-serif text-sm font-bold text-navy-900">P</span>
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-azure-500 font-serif text-sm font-bold text-navy-900">P</span>
             <span className="font-serif text-lg tracking-tight">ProvenIQ</span>
           </Link>
         </div>
@@ -98,8 +98,8 @@ export default async function LeadDetailPage({ params }: { params: { leadId: str
                   <h1 className="font-serif text-3xl tracking-tight text-navy-900">{name}</h1>
                   {lead?.lead_type && <Badge tone={lead.lead_type === 'seller' ? 'emerald' : 'navy'}>{lead.lead_type}</Badge>}
                   {score.is_hot && <Badge tone="rose">HOT</Badge>}
-                  {score.is_gem && <Badge tone="gold">GEM</Badge>}
-                  {score.is_overdue && <Badge tone="sky">OVERDUE</Badge>}
+                  {score.is_gem && <Badge tone="azure">GEM</Badge>}
+                  {score.is_overdue && <Badge tone="amber">OVERDUE</Badge>}
                 </div>
                 <p className="mt-1.5 text-sm text-navy-500">
                   {[lead?.stage, lead?.city].filter(Boolean).join(' · ') || 'No stage on record'}
@@ -113,7 +113,7 @@ export default async function LeadDetailPage({ params }: { params: { leadId: str
               <div className="flex-none text-center">
                 <div
                   className={`flex h-16 w-16 items-center justify-center rounded-2xl font-serif text-2xl font-bold text-white ${
-                    score.is_hot ? 'bg-navy-900 ring-2 ring-gold-500 ring-offset-2 ring-offset-canvas' : 'bg-navy-900'
+                    score.is_hot ? 'bg-navy-900 ring-2 ring-azure-500 ring-offset-2 ring-offset-canvas' : 'bg-navy-900'
                   }`}
                 >
                   {score.score}
@@ -125,12 +125,12 @@ export default async function LeadDetailPage({ params }: { params: { leadId: str
 
             {score.next_action && (
               <div className="mt-5 rounded-2xl bg-navy-900 p-4 text-white shadow-card">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-gold-300">Next action</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-azure-300">Next action</p>
                 <p className="mt-1 text-sm font-medium leading-relaxed">{score.next_action}</p>
               </div>
             )}
 
-            {score.overdue_detail && <p className="mt-3 text-sm font-medium text-sky-700">{score.overdue_detail}</p>}
+            {score.overdue_detail && <p className="mt-3 text-sm font-medium text-amber-700">{score.overdue_detail}</p>}
 
             {score.motivation && (
               <Section title="Motivation">
@@ -172,7 +172,7 @@ export default async function LeadDetailPage({ params }: { params: { leadId: str
                     <h3 className="font-serif text-base text-navy-900">Objections &amp; rebuttals</h3>
                     <dl className="mt-3 space-y-3">
                       {scripts.objections.map((o, i) => (
-                        <div key={i} className="border-l-2 border-gold-400 pl-3">
+                        <div key={i} className="border-l-2 border-azure-400 pl-3">
                           <dt className="text-sm font-medium text-navy-900">“{o.objection}”</dt>
                           <dd className="mt-0.5 text-sm text-navy-600">{o.rebuttal}</dd>
                         </div>
@@ -198,11 +198,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'rose' | 'gold' | 'sky' | 'emerald' | 'navy' }) {
+function Badge({ children, tone }: { children: React.ReactNode; tone: 'rose' | 'azure' | 'amber' | 'emerald' | 'navy' }) {
   const tones: Record<string, string> = {
     rose: 'bg-rose-100 text-rose-700',
-    gold: 'bg-gold-100 text-gold-700',
-    sky: 'bg-sky-100 text-sky-700',
+    azure: 'bg-azure-100 text-azure-700',
+    amber: 'bg-amber-100 text-amber-700',
     emerald: 'bg-emerald-100 text-emerald-700',
     navy: 'bg-navy-100 text-navy-700',
   }

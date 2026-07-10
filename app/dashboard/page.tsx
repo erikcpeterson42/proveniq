@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
@@ -77,10 +78,19 @@ export default async function DashboardPage() {
       <header className="sticky top-0 z-20 border-b border-navy-800 bg-navy-900 text-white shadow-lg">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3.5">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold-500 font-serif text-lg font-bold text-navy-900">P</span>
-            <span className="flex items-baseline gap-2">
+            <span className="flex items-center rounded-lg bg-white px-2.5 py-1.5 shadow-sm">
+              <Image
+                src="/proven-logo.png"
+                alt="Proven Realty, brokered by eXp"
+                width={180}
+                height={52}
+                priority
+                className="h-8 w-auto"
+              />
+            </span>
+            <span className="hidden items-baseline gap-2 sm:flex">
               <span className="font-serif text-xl tracking-tight">ProvenIQ</span>
-              <span className="hidden text-xs font-medium uppercase tracking-widest text-gold-300 sm:inline">Daily Briefing</span>
+              <span className="text-xs font-medium uppercase tracking-widest text-azure-300">Daily Briefing</span>
             </span>
           </Link>
           <div className="flex items-center gap-4">
@@ -91,7 +101,7 @@ export default async function DashboardPage() {
             <form action={signOut}>
               <button
                 type="submit"
-                className="rounded-lg border border-navy-600 px-3 py-1.5 text-sm font-medium text-navy-100 transition hover:border-gold-400 hover:text-gold-300"
+                className="rounded-lg border border-navy-600 px-3 py-1.5 text-sm font-medium text-navy-100 transition hover:border-azure-400 hover:text-azure-300"
               >
                 Sign out
               </button>
@@ -124,8 +134,8 @@ export default async function DashboardPage() {
           <>
             <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Stat label="Hot leads" value={hot} sub="Drop everything" dot="bg-rose-500" />
-              <Stat label="Seller gems" value={gems} sub="Your focus" dot="bg-gold-500" />
-              <Stat label="Overdue" value={overdue} sub="Reach out today" dot="bg-sky-500" />
+              <Stat label="Seller gems" value={gems} sub="Your focus" dot="bg-azure-500" />
+              <Stat label="Overdue" value={overdue} sub="Reach out today" dot="bg-amber-500" />
             </div>
 
             <div className="mt-8 flex items-center gap-2">
@@ -165,11 +175,11 @@ function LeadCard({ row, rank }: { row: BriefingRow; rank: number }) {
     <li>
       <Link
         href={`/dashboard/${row.lead_id}`}
-        className="group flex items-start gap-4 rounded-2xl border border-navy-100 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:border-gold-300 hover:shadow-lg"
+        className="group flex items-start gap-4 rounded-2xl border border-navy-100 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:border-azure-300 hover:shadow-lg"
       >
         <div
           className={`flex h-9 w-9 flex-none items-center justify-center rounded-full text-sm font-bold ${
-            top3 ? 'bg-gold-100 text-gold-700 ring-1 ring-gold-300' : 'bg-navy-50 text-navy-500'
+            top3 ? 'bg-azure-100 text-azure-700 ring-1 ring-azure-300' : 'bg-navy-50 text-navy-500'
           }`}
         >
           {rank}
@@ -180,12 +190,12 @@ function LeadCard({ row, rank }: { row: BriefingRow; rank: number }) {
             <span className="font-semibold text-navy-900">{name}</span>
             {lead?.lead_type && <Badge tone={lead.lead_type === 'seller' ? 'emerald' : 'navy'}>{lead.lead_type}</Badge>}
             {row.is_hot && <Badge tone="rose">HOT</Badge>}
-            {row.is_gem && <Badge tone="gold">GEM</Badge>}
-            {row.is_overdue && <Badge tone="sky">OVERDUE</Badge>}
+            {row.is_gem && <Badge tone="azure">GEM</Badge>}
+            {row.is_overdue && <Badge tone="amber">OVERDUE</Badge>}
             {lead?.city && <span className="text-xs text-navy-400">{lead.city}</span>}
           </div>
 
-          <p className="mt-2 border-l-2 border-gold-400 pl-3 text-sm font-medium text-navy-800">{row.next_action}</p>
+          <p className="mt-2 border-l-2 border-azure-400 pl-3 text-sm font-medium text-navy-800">{row.next_action}</p>
 
           {row.reasons && row.reasons.length > 0 && (
             <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -196,7 +206,7 @@ function LeadCard({ row, rank }: { row: BriefingRow; rank: number }) {
           )}
 
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-navy-500">
-            {row.overdue_detail && <span className="font-medium text-sky-700">{row.overdue_detail}</span>}
+            {row.overdue_detail && <span className="font-medium text-amber-700">{row.overdue_detail}</span>}
             {row.timeline_bucket && <span>Timeline: {row.timeline_bucket} days</span>}
             {row.best_contact_window && <span>Best time: {row.best_contact_window}</span>}
             {lead?.phone && <span>{lead.phone}</span>}
@@ -207,7 +217,7 @@ function LeadCard({ row, rank }: { row: BriefingRow; rank: number }) {
         <div className="flex flex-none flex-col items-center gap-1">
           <div
             className={`flex h-14 w-14 items-center justify-center rounded-2xl font-serif text-xl font-bold text-white ${
-              row.is_hot ? 'bg-navy-900 ring-2 ring-gold-500 ring-offset-2 ring-offset-white' : 'bg-navy-900'
+              row.is_hot ? 'bg-navy-900 ring-2 ring-azure-500 ring-offset-2 ring-offset-white' : 'bg-navy-900'
             }`}
           >
             {row.score}
@@ -215,17 +225,17 @@ function LeadCard({ row, rank }: { row: BriefingRow; rank: number }) {
           {row.likelihood != null && <span className="text-[11px] font-medium text-navy-500">{row.likelihood}% likely</span>}
         </div>
 
-        <span className="hidden self-center text-navy-300 transition group-hover:translate-x-0.5 group-hover:text-gold-500 sm:block">›</span>
+        <span className="hidden self-center text-navy-300 transition group-hover:translate-x-0.5 group-hover:text-azure-500 sm:block">›</span>
       </Link>
     </li>
   )
 }
 
-function Badge({ children, tone }: { children: React.ReactNode; tone: 'rose' | 'gold' | 'sky' | 'emerald' | 'navy' }) {
+function Badge({ children, tone }: { children: React.ReactNode; tone: 'rose' | 'azure' | 'amber' | 'emerald' | 'navy' }) {
   const tones: Record<string, string> = {
     rose: 'bg-rose-100 text-rose-700',
-    gold: 'bg-gold-100 text-gold-700',
-    sky: 'bg-sky-100 text-sky-700',
+    azure: 'bg-azure-100 text-azure-700',
+    amber: 'bg-amber-100 text-amber-700',
     emerald: 'bg-emerald-100 text-emerald-700',
     navy: 'bg-navy-100 text-navy-700',
   }
