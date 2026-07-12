@@ -11,3 +11,7 @@ export function createAnthropic(): Anthropic {
 
 // Use the latest, most capable model for AI analysis (CLAUDE.md).
 export const SCRIPT_MODEL = 'claude-opus-4-8'
+
+// Valuation report narrative: well-bounded writing over structured data, so a
+// mid-tier model does it well at a fraction of the cost (owner's request).
+export const VALUATION_MODEL = 'claude-sonnet-5'

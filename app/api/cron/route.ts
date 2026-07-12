@@ -3,6 +3,7 @@ import { incrementalSync } from '@/lib/fub/sync'
 import { scoreAllLeads } from '@/lib/jobs/scoreLeads'
 import { generateScriptsForRun } from '@/lib/jobs/generateScripts'
 import { sendDailyDigest } from '@/lib/jobs/sendDigest'
+import { runValuations } from '@/lib/jobs/runValuations'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -25,8 +26,19 @@ async function runPipeline() {
   const sync = await incrementalSync()
   const score = await scoreAllLeads()
   const scripts = await generateScriptsForRun()
+  // Deal Radar runs before the digest so tonight's valuations appear in it.
+  // Without a RentCast key (not signed up yet) it's a clean no-op, and a
+  // valuation failure never blocks the scoring digest.
+  let valuations: Record<string, unknown> = { skipped: 'RENTCAST_API_KEY not set' }
+  if (process.env.RENTCAST_API_KEY) {
+    try {
+      valuations = await runValuations()
+    } catch (e) {
+      valuations = { error: (e as Error).message }
+    }
+  }
   const digest = await sendDailyDigest()
-  return { ok: true, sync, score, scripts, digest }
+  return { ok: true, sync, score, scripts, valuations, digest }
 }
 
 // Vercel Cron issues a GET. Support POST too for manual/local triggering.

@@ -5,8 +5,10 @@ type CookieToSet = { name: string; value: string; options: CookieOptions }
 
 // Paths that skip the redirect-to-login guard. API routes enforce their
 // own auth (e.g. /api/sync checks CRON_SECRET) and must return JSON/401
-// rather than an HTML login page.
-const PUBLIC_PATHS = ['/login', '/auth', '/api']
+// rather than an HTML login page. /r/* is the CLIENT-facing valuation
+// report — protected by its unguessable token, never by team login
+// (/r/preview enforces its own auth in production).
+const PUBLIC_PATHS = ['/login', '/auth', '/api', '/r']
 
 // Refreshes the user's session on every request and redirects
 // signed-out users to /login for any protected route.

@@ -48,12 +48,25 @@ function stageName(stage?: string | { name?: string }): string | null {
   return typeof stage === 'string' ? stage : stage.name ?? null
 }
 
+// The address most likely to be the home the lead OWNS: prefer type "home",
+// then any address that has a street line, then the first entry.
+export function homeAddress(p: FubPerson) {
+  const list = p.addresses ?? []
+  return (
+    list.find((a) => (a.type ?? '').toLowerCase() === 'home' && a.street) ??
+    list.find((a) => a.street) ??
+    list[0] ??
+    null
+  )
+}
+
 // Maps a FUB person -> a row for our `leads` table. Note we deliberately
 // do NOT set last_touch_at / last_inbound_at here — those are derived from
 // events by recompute_lead_touch() so an upsert never clobbers them.
 export function mapPerson(p: FubPerson, now: string): Record<string, unknown> {
   const tags = Array.isArray(p.tags) ? p.tags : []
   const stage = stageName(p.stage)
+  const addr = homeAddress(p)
   return {
     id: p.id,
     name: p.name ?? null,
@@ -68,7 +81,10 @@ export function mapPerson(p: FubPerson, now: string): Record<string, unknown> {
     fub_created_at: p.created ?? null,
     last_activity_at: p.lastActivity ?? null,
     price_range: p.price != null ? String(p.price) : null,
-    city: p.addresses?.[0]?.city ?? null,
+    city: addr?.city ?? p.addresses?.[0]?.city ?? null,
+    address_street: addr?.street ?? null,
+    address_state: addr?.state ?? null,
+    address_zip: addr?.code ?? null,
     raw: p as unknown as Record<string, unknown>,
     synced_at: now,
   }

@@ -89,10 +89,49 @@ To test the nightly job by hand any time, you (or Claude) can trigger it:
 
 ---
 
+## Part E — Turn on Deal Radar (automatic home value reports)
+
+Deal Radar values your leads' homes and emails them a branded report
+automatically. Three one-time steps:
+
+1. **Create the database table.** Open your Supabase project → **SQL Editor**
+   → paste the entire contents of `supabase/migrations/0003_valuations.sql`
+   → **Run**. (Same thing you did for the first migration.)
+2. **Get a free RentCast key.** Go to **app.rentcast.io**, make an account,
+   choose the free **Developer** plan (50 lookups/month — enough for
+   testing), and create an API key. Put it in `.env.local` on the line
+   `RENTCAST_API_KEY=` and add the same variable in Vercel → Settings →
+   Environment Variables → Redeploy.
+3. **Verify your email domain in Resend.** In Resend → **Domains**, add
+   `provenrealtynd.com` and add the DNS records it shows you. Reports send
+   from `valuation@provenrealtynd.com` — without this step Resend will
+   refuse to send to clients.
+
+**How it behaves once on:**
+- Every night it values leads that are NEW to Follow Up Boss (if they have a
+  home address). Sellers get the report emailed automatically; everyone else
+  is held for a quick agent OK at `/admin/valuations`.
+- Monday nights it also works through the backlog slice: sellers tagged
+  `timeline=within 90 days` + `YPRIORITY`.
+- Every sent report refreshes automatically each quarter.
+- If a home is already listed with another brokerage, the report is **never
+  emailed** (that's an ethics rule) — it appears in your team digest instead
+  so you can match it to buyers.
+- It will never spend more than ~45 RentCast lookups a month until you
+  raise `RENTCAST_MONTHLY_BUDGET`.
+
+**See the design any time** (no lookups used): open `/r/preview` for the web
+report and `/api/r/preview/pdf` for the PDF.
+
+---
+
 ## Quick reference: what each web address does
 
 - `/login` — sign in
 - `/dashboard` — today's ranked briefing
 - `/dashboard/<lead id>` — one lead's scripts
 - `/admin/sync` — pull data from Follow Up Boss (admins only)
-- `/api/cron` — the nightly robot (runs sync → score → scripts → email)
+- `/admin/valuations` — Deal Radar review queue (approve held reports)
+- `/r/<token>` — a client's home value report (public link, no login)
+- `/r/preview` — sample report so you can check the design
+- `/api/cron` — the nightly robot (sync → score → scripts → valuations → email)

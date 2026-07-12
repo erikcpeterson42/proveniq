@@ -24,9 +24,11 @@ export interface FubPhone {
 }
 
 export interface FubAddress {
+  street?: string
   city?: string
   state?: string
   code?: string
+  country?: string
   type?: string
 }
 
@@ -98,7 +100,7 @@ export interface FubEmailEvent {
   created?: string
 }
 
-// The 10 event types allowed by our lead_events.type CHECK constraint.
+// The event types allowed by our lead_events.type CHECK constraint.
 export type LeadEventType =
   | 'property_view'
   | 'inquiry'
@@ -110,6 +112,7 @@ export type LeadEventType =
   | 'call'
   | 'note'
   | 'website_visit'
+  | 'report_open'
 
 export interface LeadEventRow {
   lead_id: number

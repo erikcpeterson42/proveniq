@@ -4,6 +4,7 @@
 
 import { Resend } from 'resend'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { buildDealRadarHtml } from './valuationDigest'
 
 type Db = ReturnType<typeof createAdminClient>
 
@@ -38,7 +39,7 @@ async function recipientList(db: Db): Promise<string[]> {
   return (profiles ?? []).map((p) => p.email as string).filter(Boolean)
 }
 
-function buildHtml(runDate: string, rows: DigestRow[], stats: { hot: number; gems: number; overdue: number }): string {
+function buildHtml(runDate: string, rows: DigestRow[], stats: { hot: number; gems: number; overdue: number }, dealRadarHtml: string): string {
   const base = (process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
   const chip = (bg: string, fg: string, label: string) =>
     `<span style="display:inline-block;padding:1px 6px;margin-left:4px;border-radius:4px;background:${bg};color:${fg};font-size:10px;font-weight:700;letter-spacing:.3px;">${label}</span>`
@@ -80,6 +81,7 @@ function buildHtml(runDate: string, rows: DigestRow[], stats: { hot: number; gem
           <b style="color:#b45309;">${stats.overdue}</b> overdue
         </div>
         <table style="width:100%;border-collapse:collapse;">${items}</table>
+        ${dealRadarHtml}
         <div style="margin-top:20px;text-align:center;">
           <a href="${base}/dashboard" style="display:inline-block;background:#0f2a43;color:#fff;text-decoration:none;font-size:14px;font-weight:600;padding:10px 18px;border-radius:10px;">Open the full briefing</a>
         </div>
@@ -117,7 +119,12 @@ export async function sendDailyDigest(): Promise<DigestResult> {
   if (!apiKey) throw new Error('RESEND_API_KEY is not set')
   const resend = new Resend(apiKey)
   const from = process.env.DIGEST_FROM ?? 'ProvenIQ <onboarding@resend.dev>'
-  const html = buildHtml(runDate, rows, { hot: hotRes.count ?? 0, gems: gemRes.count ?? 0, overdue: odRes.count ?? 0 })
+  // Deal Radar section must never sink the whole digest.
+  const dealRadarHtml = await buildDealRadarHtml(db).catch((e) => {
+    console.error('[digest] deal radar section failed:', (e as Error).message)
+    return ''
+  })
+  const html = buildHtml(runDate, rows, { hot: hotRes.count ?? 0, gems: gemRes.count ?? 0, overdue: odRes.count ?? 0 }, dealRadarHtml)
 
   const { error } = await resend.emails.send({
     from,
